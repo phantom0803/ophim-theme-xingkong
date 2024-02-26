@@ -12,8 +12,22 @@
         foreach ($lists as $list) {
             if (trim($list)) {
                 $list = explode('|', $list);
-                [$label, $relation, $field, $val, $sortKey, $alg, $limit, $link] = array_merge($list, ['Phim mới cập nhật', '', 'type', 'series', 'created_at', 'desc', 8, '/']);
+                [$label, $relation, $field, $val, $sortKey, $alg, $limit, $link, $template] = array_merge($list, ['Phim mới cập nhật', '', 'type', 'series', 'created_at', 'desc', 8, '/', 'default']);
                 try {
+                    $top = null;
+                    if ($template === 'with_top') {
+                        $top = Movie::when($relation, function ($query) use ($relation, $field, $val) {
+                            $query->whereHas($relation, function ($rel) use ($field, $val) {
+                                $rel->where($field, $val);
+                            });
+                        })
+                            ->when(!$relation, function ($query) use ($field, $val) {
+                                $query->where($field, $val);
+                            })
+                            ->orderBy('view_week', 'desc')
+                            ->limit(9)
+                            ->get();
+                    }
                     $data[] = [
                         'label' => $label,
                         'data' => Movie::when($relation, function ($query) use ($relation, $field, $val) {
@@ -27,7 +41,9 @@
                             ->orderBy($sortKey, $alg)
                             ->limit($limit)
                             ->get(),
+                        'top' => $top,
                         'link' => $link ?: '#',
+                        'template' => $template,
                     ];
                 } catch (\Exception $e) {
                 }
@@ -35,14 +51,35 @@
         }
         return $data;
     });
-
 @endphp
 
 @push('header')
+    <style type="text/css">
+        .stui-vodlist__thumb.banner {
+            padding-top: 30%;
+        }
+
+        @media (max-width:767px) {
+            .stui-vodlist__thumb.banner {
+                padding-top: 45%;
+            }
+        }
+    </style>
 @endpush
 
 @section('content')
+    @include('themes::themexingkong.inc.slider_recommended')
+
+    @foreach ($data as $item)
+        @include('themes::themexingkong.inc.sections.' . $item['template'])
+    @endforeach
 @endsection
 
 @push('scripts')
+    <script type="text/javascript">
+        $(".score").each(function() {
+            var star = $(this).find(".branch").text().replace(".", "0.");
+            $(this).find("#score").css("width", "" + star + "%");
+        });
+    </script>
 @endpush

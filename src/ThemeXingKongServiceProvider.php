@@ -3,6 +3,7 @@
 namespace Ophim\ThemeXingKong;
 
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
+use Illuminate\Support\Facades\Cache;
 
 class ThemeXingKongServiceProvider extends ServiceProvider
 {
@@ -18,6 +19,44 @@ class ThemeXingKongServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../resources/assets' => public_path('themes/xingkong')
         ], 'xingkong-assets');
+
+        view()->composer('themes::themexingkong.*', function ($view) {
+            $view->with('menu', \Ophim\Core\Models\Menu::getTree());
+        });
+
+        view()->composer(['themes::themexingkong.inc.right_bar'], function ($view) {
+            $tops = Cache::remember('site.movies.tops', setting('site_cache_ttl', 5 * 60), function () {
+                $lists = preg_split('/[\n\r]+/', get_theme_option('hotest'));
+                $data = [];
+                foreach ($lists as $list) {
+                    if (trim($list)) {
+                        $list = explode('|', $list);
+                        [$label, $relation, $field, $val, $sortKey, $alg, $limit] = array_merge($list, ['Phim hot', '', 'type', 'series', 'view_total', 'desc', 4]);
+                        try {
+                            $data[] = [
+                                'label' => $label,
+                                'data' => \Ophim\Core\Models\Movie::when($relation, function ($query) use ($relation, $field, $val) {
+                                    $query->whereHas($relation, function ($rel) use ($field, $val) {
+                                        $rel->where($field, $val);
+                                    });
+                                })
+                                    ->when(!$relation, function ($query) use ($field, $val) {
+                                        $query->where($field, $val);
+                                    })
+                                    ->orderBy($sortKey, $alg)
+                                    ->limit($limit)
+                                    ->get(),
+                            ];
+                        } catch (\Exception $e) {
+                            # code
+                        }
+                    }
+                }
+
+                return $data;
+            });
+            $view->with('tops', $tops);
+        });
     }
 
     protected function setupDefaultThemeCustomizer()
@@ -44,7 +83,7 @@ class ThemeXingKongServiceProvider extends ServiceProvider
                         'name' => 'per_page_limit',
                         'label' => 'Pages limit',
                         'type' => 'number',
-                        'value' => 20,
+                        'value' => 30,
                         'wrapperAttributes' => [
                             'class' => 'form-group col-md-4',
                         ],
@@ -54,7 +93,7 @@ class ThemeXingKongServiceProvider extends ServiceProvider
                         'name' => 'movie_related_limit',
                         'label' => 'Movies related limit',
                         'type' => 'number',
-                        'value' => 8,
+                        'value' => 12,
                         'wrapperAttributes' => [
                             'class' => 'form-group col-md-4',
                         ],
@@ -64,12 +103,12 @@ class ThemeXingKongServiceProvider extends ServiceProvider
                         'name' => 'latest',
                         'label' => 'Home Page',
                         'type' => 'code',
-                        'hint' => 'display_label|display_description|relation|find_by_field|value|sort_by_field|sort_algo|limit|show_more_url',
+                        'hint' => 'display_label|display_description|relation|find_by_field|value|sort_by_field|sort_algo|limit|show_more_url|section_template(default|with_top)',
                         'value' => <<<EOT
-                        Phim chiếu rạp mới||is_shown_in_theater|1|created_at|desc|8|/danh-sach/phim-chieu-rap
-                        Phim bộ mới||type|series|updated_at|desc|8|/danh-sach/phim-bo
-                        Phim lẻ mới||type|single|updated_at|desc|8|/danh-sach/phim-le
-                        Phim hoạt hình mới|categories|slug|hoat-hinh|updated_at|desc|8|/the-loai/hoat-hinh
+                        Phim chiếu rạp mới||is_shown_in_theater|1|created_at|desc|12|/danh-sach/phim-chieu-rap|default
+                        Phim bộ mới||type|series|updated_at|desc|10|/danh-sach/phim-bo|with_top
+                        Phim lẻ mới||type|single|updated_at|desc|10|/danh-sach/phim-le|with_top
+                        Phim hoạt hình mới|categories|slug|hoat-hinh|updated_at|desc|10|/the-loai/hoat-hinh|with_top
                         EOT,
                         'attributes' => [
                             'rows' => 5
@@ -80,11 +119,11 @@ class ThemeXingKongServiceProvider extends ServiceProvider
                         'name' => 'hotest',
                         'label' => 'Danh sách hot',
                         'type' => 'code',
-                        'hint' => 'Label|relation|find_by_field|value|sort_by_field|sort_algo|limit|show_template (top_thumb|top_thumb_scroll)',
+                        'hint' => 'Label|relation|find_by_field|value|sort_by_field|sort_algo|limit',
                         'value' => <<<EOT
-                        Top phim lẻ||type|single|view_week|desc|10|top_thumb
-                        Top phim bộ||type|series|view_week|desc|10|top_thumb_scroll
-                        Phim sắp chiếu||status|trailer|publish_year|desc|10|top_thumb_scroll
+                        Phim sắp chiếu||status|trailer|publish_year|desc|8
+                        Top phim lẻ||type|single|view_week|desc|8
+                        Top phim bộ||type|series|view_week|desc|8
                         EOT,
                         'attributes' => [
                             'rows' => 5
@@ -131,13 +170,34 @@ class ThemeXingKongServiceProvider extends ServiceProvider
                         'label' => 'Footer',
                         'type' => 'code',
                         'value' => <<<EOT
-                        <footer class="border-top">
-                            <div class="footer container d-flex justify-content-between">
-                                <div class="logo align-self-center">
-                                    <a href="#">
-                                        <img class="lazy" data-original="https://ophim12.cc/logo-ophim-5.png"><br>
-                                        <span>Theme xingkong <b>OPhimCMS</b></span>
-                                    </a>
+                        <footer>
+                            <div class="container">
+                                <div class="row">
+                                    <div class="stui-foot clearfix">
+                                        <p class="text-center hidden-xs">
+                                        <a class="fed-font-xiv" href="#" target="_blank">Textlink</a>
+                                        <span class="fed-font-xiv"> - </span>
+                                        <a class="fed-font-xiv" href="#" target="_blank">Textlink</a>
+                                        <span class="fed-font-xiv fed-hide-xs"> - </span>
+                                        <a class="fed-font-xiv fed-hide-xs" href="#" target="_blank">Textlink</a>
+                                        <span class="fed-font-xiv fed-hide-xs"> - </span>
+                                        <a class="fed-font-xiv fed-hide-xs" href="#" target="_blank">Textlink</a>
+                                        <span class="fed-font-xiv fed-hide-xs"> - </span>
+                                        <a class="fed-font-xiv fed-hide-xs" href="#" target="_blank">Textlink</a>
+                                        <span class="fed-font-xiv fed-hide-xs"> - </span>
+                                        <a class="fed-font-xiv fed-hide-xs" href="#" target="_blank">Textlink</a>
+                                        <span class="fed-font-xiv fed-hide-xs"> - </span>
+                                        <a class="fed-font-xiv fed-hide-xs" href="#" target="_blank">Textlink</a>
+                                        </p>
+                                    </div>
+                                    <div class="stui-foot clearfix">
+                                        <div class="col-pd text-center hidden-xs">
+                                        Dữ liệu phim miễn phí vĩnh viễn. Cập nhật nhanh, chất lượng cao, ổn định và lâu dài. Tốc độ phát cực nhanh với đường truyền băng thông cao, đảm bảo đáp ứng được lượng xem phim trực tuyến lớn. Đồng thời giúp nhà phát triển website phim giảm thiểu chi phí của các dịch vụ lưu trữ và stream.
+                                        </div>
+                                        <p class="share bdsharebuttonbox text-center margin-0 hidden-sm hidden-xs"></p>
+                                        <p class="text-muted text-center visible-xs">Copyright © 2015-2024 <a href="/" target="_blank">OPHIMCMS</a>
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </footer>

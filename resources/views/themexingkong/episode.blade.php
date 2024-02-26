@@ -1,9 +1,136 @@
 @extends('themes::themexingkong.layout')
 
 @push('header')
+    <style>
+        #wrapper-video {
+            height: 505px !important;
+        }
+
+        @media only screen and (max-width: 500px) {
+            #wrapper-video {
+                height: 210px !important;
+            }
+        }
+
+        @media only screen and (min-width: 501px) and (max-width: 767px) {
+            #wrapper-video {
+                height: 286px !important;
+            }
+        }
+
+        @media only screen and (min-width: 768px) and (max-width: 991px) {
+            #wrapper-video {
+                height: 388px !important;
+            }
+        }
+
+        @media only screen and (min-width: 992px) and (max-width: 1199px) {
+            #wrapper-video {
+                height: 525px !important;
+            }
+        }
+    </style>
 @endpush
 
 @section('content')
+    <div class="col-lg-wide-8 col-xs-1 padding-0">
+        <div class="stui-pannel stui-pannel-bg clearfix">
+            <div class="stui-pannel-box">
+                <div class="stui-pannel-bd">
+                    <div class="stui-player col-pd">
+                        <div id="wrapper-video" class="stui-player__video clearfix">
+
+                        </div>
+                        <div class="stui-player__detail detail">
+                            <ul class="more-btn">
+                                <li>
+                                    <div class="" style="display: flex;gap:5px">
+                                        @foreach ($currentMovie->episodes->where('slug', $episode->slug)->where('server', $episode->server) as $server)
+                                            <button onclick="chooseStreamingServer(this)" data-type="{{ $server->type }}"
+                                                data-id="{{ $server->id }}" data-link="{{ $server->link }}"
+                                                class="streaming-server btn btn-default">VIP
+                                                #{{ $loop->index + 1 }}</button>
+                                        @endforeach
+                                    </div>
+
+                                </li>
+                                <li>
+                                    <button class="btn btn-default" id="report_error">Báo lỗi
+                                        <i class="icon iconfont icon-close "></i>
+                                    </button>
+                                </li>
+                            </ul>
+                            <h1 class="title">
+                                <a href="{{ $episode->getUrl() }}">Tập {{ $episode->name }}</a>
+                            </h1>
+                            <p>
+                                <span class="title">Đổi nguồn phát VIP #1, VIP #2 khi lỗi.</span>
+
+                            </p>
+                            <div class="col-sm-12">
+                                <div id="movies-rating-star"></div>
+                                ({{ $currentMovie->getRatingStar() }}
+                                sao
+                                /
+                                {{ $currentMovie->getRatingCount() }} đánh giá)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @foreach ($currentMovie->episodes->sortBy([['server', 'asc']])->groupBy('server') as $server => $data)
+            <div class="stui-pannel stui-pannel-bg clearfix">
+                <div class="stui-pannel-box b playlist mb">
+                    <div class="stui-pannel_hd">
+                        <div class="stui-pannel__head bottom-line active clearfix">
+                            <span class="more text-muted pull-right"></span>
+                            <h3 class="title"> Phim {{ $currentMovie->name }} - {{ $server }} </h3>
+                        </div>
+                    </div>
+                    <div class="stui-pannel_bd col-pd clearfix">
+                        <ul class="stui-content__playlist clearfix">
+                            @foreach ($data->sortByDesc('name', SORT_NATURAL)->groupBy('name') as $name => $item)
+                                <li class="@if ($item->contains($episode)) active @endif"><a
+                                        href="{{ $item->sortByDesc('type')->first()->getUrl() }}">Tập
+                                        {{ $name }}</a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        @endforeach
+
+        <div class="stui-pannel stui-pannel-bg clearfix">
+            <div class="stui-pannel-box">
+                <div class="stui-pannel_hd">
+                    <div class="stui-pannel__head clearfix">
+                        <h3 class="title">
+                            <img src="{{ asset('themes/xingkong/img/icon_30.png') }}" /> Nội dung phim
+                        </h3>
+                    </div>
+                </div>
+                <div class="stui-pannel_bd">
+                    <p class="col-pd detail">
+                        <span class="detail-sketch">
+                            {!! Str::limit(strip_tags($currentMovie->content), 300, '...') !!}
+                        </span>
+                        <span class="detail-content" style="display: none;">
+                            {!! strip_tags($currentMovie->content) !!}
+                        </span>
+                        <a class="detail-more" href="javascript:;">Xem thêm <i class="icon iconfont icon-moreunfold"></i>
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        @include('themes::themexingkong.inc.related_movie')
+        @include('themes::themexingkong.inc.comment')
+    </div>
+    @include('themes::themexingkong.inc.right_bar')
 @endsection
 
 @push('scripts')
@@ -36,9 +163,9 @@
             episode_id = id;
 
             Array.from(document.getElementsByClassName('streaming-server')).forEach(server => {
-                server.classList.remove('active');
+                server.classList.remove('btn-primary');
             })
-            el.classList.add('active');
+            el.classList.add('btn-primary');
             renderPlayer(type, link, id);
         }
 
